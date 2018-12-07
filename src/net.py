@@ -134,9 +134,9 @@ class Net:
         callbacks_list = [checkpoint]
         self.model.fit(self.x, self.y, epochs=self.epochs, batch_size=self.batch_size, callbacks=callbacks_list)
 
-    def run_inference(self, midi_filename, weights_path):
+    def run_inference(self, midi_filename, weights_path, mode=None, predictions=None):
         self._load_mappings()
-        self._preprocess_midi_inference(midi_filename)
+        self._preprocess_midi(midi_filename)
         self._build_model()
         self.model.load_weights(weights_path)
         self.model.compile(loss='categorical_crossentropy', optimizer='adam')
@@ -156,8 +156,13 @@ class Net:
                 pattern = pattern[1:len(pattern)]
 
             self.song.polyphonic_pianoroll = list(map(list, self.song.polyphonic_pianoroll))
+            if mode == "rest_api_mode":
+                predictions.append(self.song.polyphonic_pianoroll)
             self.song.back_to_pianorolls()
-            save_midi(self.song.pianorolls, 'generated-%s.mid' % n)
+            if mode != "rest_api_mode":
+                save_midi(self.song.pianorolls, 'generated-%s.mid' % n)
+        if mode == "rest_api_mode":
+            return predictions
 
 
 if __name__ == "__main__":
