@@ -28,7 +28,7 @@ class Net:
 
     def _preprocess_midi(self, midi_filename, seq_length=16):
         tracks = parse_midi(midi_filename, self.min_dur)
-
+        print(tracks)
         self.song = Polyphonic_pianoroll(tracks)
         self.pianoroll = list(map(tuple, self.song.polyphonic_pianoroll))  # tuple is hashable
 
@@ -67,7 +67,7 @@ class Net:
         callbacks_list = [checkpoint]
         self.model.fit(self.x, self.y, epochs=self.epochs, batch_size=self.batch_size, callbacks=callbacks_list)
 
-    def run_inference(self, midi_filename, weights_path):
+    def run_inference(self, midi_filename, weights_path, mode=None, predictions=None):
         self._preprocess_midi(midi_filename)
         self._build_model()
         self.model.load_weights(weights_path)
@@ -88,8 +88,13 @@ class Net:
                 pattern = pattern[1:len(pattern)]
 
             self.song.polyphonic_pianoroll = list(map(list, self.song.polyphonic_pianoroll))
+            if mode == "rest_api_mode":
+                predictions.append(self.song.polyphonic_pianoroll)
             self.song.back_to_pianorolls()
-            save_midi(self.song.pianorolls, 'generated-%s.mid' % n)
+            if mode != "rest_api_mode":
+                save_midi(self.song.pianorolls, 'generated-%s.mid' % n)
+        if mode == "rest_api_mode":
+            return predictions
 
 
 if __name__ == "__main__":

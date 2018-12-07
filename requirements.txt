@@ -2,3 +2,5 @@ keras
 tensorflow
 numpy
 mido
+requests
+flask
