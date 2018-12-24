@@ -1,4 +1,6 @@
 import argparse
+from os.path import isdir, isfile, join
+from os import listdir
 
 import numpy
 from keras.callbacks import ModelCheckpoint
@@ -25,8 +27,12 @@ class Net:
         self.pianoroll = None
         self.int_to_chord = None
         self.model = None
+        # todo: we need shape that will be good for training and INFERENCE
+        # todo: something like (A_const, B_const, N_variable)
+        # todo: there is something like this in files from Kurowski
+        self.shape_tuple = None
 
-    def _preprocess_midi(self, midi_filename, seq_length=16):
+    def _preprocess_midi_inference(self, midi_filename, seq_length=16):
         tracks = parse_midi(midi_filename, self.min_dur)
 
         self.song = Polyphonic_pianoroll(tracks)
@@ -45,7 +51,40 @@ class Net:
             self.data_x.append([chord_to_int[char] for char in seq_in])
             self.data_y.append(chord_to_int[seq_out])
 
-        self.x = numpy.reshape(self.data_x, (len(self.data_x), seq_length, 1))
+        # todo: it will use the proposed shape for inference
+        self.x = numpy.reshape(self.data_x, self.shape_tuple)
+        self.x = self.x / float(len(chords))
+        self.y = np_utils.to_categorical(self.data_y)
+
+    def _preprocess_midi_training(self, midi_dir, seq_length=16):
+
+        self.data_x = []
+        self.data_y = []
+
+        for filename in listdir(midi_dir):
+            if filename.endswith('.mid'):
+
+                tracks = parse_midi(join(midi_dir, filename), self.min_dur)
+
+                self.song = Polyphonic_pianoroll(tracks)
+                self.pianoroll = list(map(tuple, self.song.polyphonic_pianoroll))  # tuple is hashable
+
+                chords = sorted(list(set(self.pianoroll)))
+                chord_to_int = dict((c, i) for i, c in enumerate(chords))
+
+                self.int_to_chord = dict((i, c) for i, c in enumerate(chords))
+
+                for i in range(0, len(self.pianoroll) - seq_length, 1):
+                    seq_in = self.pianoroll[i:i + seq_length]
+                    seq_out = self.pianoroll[i + seq_length]
+                    self.data_x.append([chord_to_int[char] for char in seq_in])
+                    self.data_y.append(chord_to_int[seq_out])
+
+        # todo: shape must be as specified above, working both for training and inference
+        # todo: this solution is BAD, it can worki only for training
+        if not self.shape_tuple:
+            self.shape_tuple = (len(self.data_x), seq_length, 1)
+        self.x = numpy.reshape(self.data_x, self.shape_tuple)
         self.x = self.x / float(len(chords))
         self.y = np_utils.to_categorical(self.data_y)
 
@@ -56,19 +95,17 @@ class Net:
         model.add(Dense(self.y.shape[1], activation='softmax'))
         self.model = model
 
-    def run_training(self, midi_filename):
-        # todo: here we need to learn from many files but this is for later
-        self._preprocess_midi(midi_filename)
+    def run_training(self, midi_dir):
+        self._preprocess_midi_training(midi_dir)
         self._build_model()
         self.model.compile(loss='categorical_crossentropy', optimizer='adam')
-        filepath = "%s-md=%s-bs=%s-improvement-{epoch:02d}-{loss:.4f}.hdf5" % (midi_filename, self.min_dur,
-                                                                               self.batch_size)
+        filepath = "md=%s-bs=%s-improvement-{epoch:02d}-{loss:.4f}.hdf5" % (self.min_dur, self.batch_size)
         checkpoint = ModelCheckpoint(filepath, monitor='loss', verbose=1, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
         self.model.fit(self.x, self.y, epochs=self.epochs, batch_size=self.batch_size, callbacks=callbacks_list)
 
     def run_inference(self, midi_filename, weights_path):
-        self._preprocess_midi(midi_filename)
+        self._preprocess_midi_inference(midi_filename)
         self._build_model()
         self.model.load_weights(weights_path)
         self.model.compile(loss='categorical_crossentropy', optimizer='adam')
@@ -96,8 +133,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", type=str, required=True,
                         help="training or inference.")
-    parser.add_argument("--midi_filename", type=str, required=True,
-                        help="Name of input MIDI file.")
+    parser.add_argument("--midi_input", type=str, required=True,
+                        help="Name of input MIDI file (inference) or dir with midi files (training).")
     parser.add_argument("--min_dur", type=int, default=40,
                         help="Min dur value")
     parser.add_argument("--batch_size", type=int, default=512,
@@ -115,9 +152,11 @@ if __name__ == "__main__":
     net = Net(args.min_dur, args.batch_size, args.epochs, args.gen_len, args.gen_num)
 
     if args.mode == "training":
-        net.run_training(args.midi_filename)
+        assert isdir(args.midi_input)
+        net.run_training(args.midi_input)
     elif args.mode == "inference":
+        assert isfile(args.midi_input)
         assert args.weights_path, "Need to specify weights path.gen_num"
-        net.run_inference(args.midi_filename, args.weights_path)
+        net.run_inference(args.midi_input, args.weights_path)
     else:
         raise Exception("Wrong mode, must be either training or inference.")
