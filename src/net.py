@@ -1,6 +1,7 @@
 import argparse
 from os.path import isdir, isfile, join
 from os import listdir
+from pickle import dump, load
 
 import numpy
 from keras.callbacks import ModelCheckpoint
@@ -10,15 +11,18 @@ from keras.utils import np_utils
 
 from midi import Polyphonic_pianoroll, parse_midi, save_midi
 
+# inference: --mode inference --midi_input input_files/Bachovich_Serenade_guitar_duo.mid --weights_path md=40-bs=512-improvement-01-7.0389.hdf5
+
 
 class Net:
     """Class representing neural network."""
-    def __init__(self, min_dur, batch_size, epochs, gen_len, gen_num):
+    def __init__(self, min_dur, batch_size, epochs, gen_len, gen_num, seq_len=16):
         self.min_dur = min_dur
         self.batch_size = batch_size
         self.epochs = epochs
         self.gen_len = gen_len
         self.gen_num = gen_num
+        self.seq_len = seq_len
         self.x = None
         self.y = None
         self.data_x = None
@@ -51,12 +55,11 @@ class Net:
             self.data_x.append([chord_to_int[char] for char in seq_in])
             self.data_y.append(chord_to_int[seq_out])
 
-        # todo: it will use the proposed shape for inference
-        self.x = numpy.reshape(self.data_x, self.shape_tuple)
+        self.x = numpy.reshape(self.data_x, (len(self.data_x), self.seq_len, 1))
         self.x = self.x / float(len(chords))
         self.y = np_utils.to_categorical(self.data_y)
 
-    def _preprocess_midi_training(self, midi_dir, seq_length=16):
+    def _preprocess_midi_training(self, midi_dir):
 
         self.data_x = []
         self.data_y = []
@@ -74,23 +77,24 @@ class Net:
 
                 self.int_to_chord = dict((i, c) for i, c in enumerate(chords))
 
-                for i in range(0, len(self.pianoroll) - seq_length, 1):
-                    seq_in = self.pianoroll[i:i + seq_length]
-                    seq_out = self.pianoroll[i + seq_length]
+                for i in range(0, len(self.pianoroll) - self.seq_len, 1):
+                    seq_in = self.pianoroll[i:i + self.seq_len]
+                    seq_out = self.pianoroll[i + self.seq_len]
                     self.data_x.append([chord_to_int[char] for char in seq_in])
                     self.data_y.append(chord_to_int[seq_out])
 
         # todo: shape must be as specified above, working both for training and inference
         # todo: this solution is BAD, it can worki only for training
-        if not self.shape_tuple:
-            self.shape_tuple = (len(self.data_x), seq_length, 1)
-        self.x = numpy.reshape(self.data_x, self.shape_tuple)
+        # if not self.shape_tuple:
+        #     self.shape_tuple = (len(self.data_x), self.seq_len, 1)
+        # self.x = numpy.reshape(self.data_x, self.shape_tuple)
+        self.x = numpy.reshape(self.data_x, (len(self.data_x), self.seq_len, 1))
         self.x = self.x / float(len(chords))
         self.y = np_utils.to_categorical(self.data_y)
 
     def _build_model(self):
         model = Sequential()
-        model.add(LSTM(self.batch_size, input_shape=(self.x.shape[1], self.x.shape[2])))
+        model.add(LSTM(self.batch_size, input_shape=(self.seq_len, 1)))
         model.add(Dropout(0.2)) # maybe parametrize?
         model.add(Dense(self.y.shape[1], activation='softmax'))
         self.model = model
@@ -117,7 +121,7 @@ class Net:
             for i in range(self.gen_len):
                 x = numpy.reshape(pattern, (1, len(pattern), 1))
                 x = x / float(len(self.pianoroll))
-                prediction = self.model.predict(self.x, verbose=0)
+                prediction = self.model.predict(x, verbose=0)
                 index = numpy.random.choice(len(prediction[0]), 1, p=prediction[0])
                 result = self.int_to_chord[index[0]]
                 self.song.polyphonic_pianoroll.append(result)
@@ -139,9 +143,9 @@ if __name__ == "__main__":
                         help="Min dur value")
     parser.add_argument("--batch_size", type=int, default=512,
                         help="Size of training batch")
-    parser.add_argument("--epochs", type=int, default=1000,
+    parser.add_argument("--epochs", type=int, default=5,
                         help="echo the string you use here")
-    parser.add_argument("--gen_len", type=int, default=1000,
+    parser.add_argument("--gen_len", type=int, default=100,
                         help="echo the string you use here")
     parser.add_argument("--gen_num", type=int, default=5,
                         help="echo the string you use here")
