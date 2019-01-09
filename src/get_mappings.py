@@ -52,4 +52,5 @@ if __name__ == '__main__':
     parser.add_argument("--inference_path", type=str, required=True,
                         help="path to file 4 inference")
     args = parser.parse_args
+    main(args.training_dir, args.inference_path)
 
