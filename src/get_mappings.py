@@ -38,7 +38,7 @@ def main(training_dir, inference_path):
     int_to_chord = {i: chord for i, chord in enumerate(all_chords)}
     chord_to_int = {chord: i for i, chord in enumerate(all_chords)}
 
-    for filename, obj in zip(("int_to_chord.pkl", "chord_to_int.pkl"), (int_to_chord, chord_to_int)):
+    for filename, obj in zip(("./int_to_chord.pkl", "./chord_to_int.pkl"), (int_to_chord, chord_to_int)):
         with open(filename, 'wb') as f:
             dump(obj, f)
 
