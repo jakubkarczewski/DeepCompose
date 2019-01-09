@@ -42,6 +42,8 @@ def main(training_dir, inference_path):
         with open(filename, 'wb') as f:
             dump(obj, f)
 
+    print("done")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
