@@ -1,9 +1,9 @@
 from mido import Message, MidiFile, MidiTrack, MetaMessage
 
-MIN_DUR = 10
+MIN_DUR = 40
 
 
-class Pianoroll(object):
+class Pianoroll:
     def __init__(self, pitch_range, program_change, msgs):
         self.pitch_range = pitch_range
         self.program_change = program_change
@@ -56,7 +56,7 @@ def messages_to_pianoroll(pitch_range, msgs):
     return stack
 
 
-def parse_midi(path, min_dur=5):
+def parse_midi(path, min_dur=40):
     global MIN_DUR
     MIN_DUR = min_dur
     mid = MidiFile(path)
@@ -116,9 +116,11 @@ def parse_midi(path, min_dur=5):
 
 def roll_to_message(track, pianoroll, pattern, storage, pause):
     pitches = []
+
     for i, _ in enumerate(pianoroll.pitch_range):
         if pattern[i] == 1:
             pitches.append(pianoroll.pitch_range[i])
+
 
     if pitches:
         c = pianoroll.program_change.channel
@@ -207,7 +209,5 @@ class Polyphonic_pianoroll:
 def save_midi(tracks, name):
     mid = MidiFile()
     for t in tracks:
-        # print(t.pitch_range)
-        # print(t.roll)
         mid.tracks.append(pianoroll_to_messages(t))
     mid.save(name)

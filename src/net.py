@@ -172,7 +172,7 @@ if __name__ == "__main__":
                         help="Size of training batch")
     parser.add_argument("--epochs", type=int, default=5,
                         help="echo the string you use here")
-    parser.add_argument("--gen_len", type=int, default=100,
+    parser.add_argument("--gen_len", type=int, default=1000,
                         help="echo the string you use here")
     parser.add_argument("--gen_num", type=int, default=5,
                         help="echo the string you use here")
