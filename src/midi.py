@@ -118,8 +118,10 @@ def roll_to_message(track, pianoroll, pattern, storage, pause):
     pitches = []
 
     for i, _ in enumerate(pianoroll.pitch_range):
-        if pattern[i] == 1:
-            pitches.append(pianoroll.pitch_range[i])
+        # todo: fix
+        if len(pattern) > i:
+            if pattern[i] == 1:
+                pitches.append(pianoroll.pitch_range[i])
 
 
     if pitches:
@@ -152,19 +154,23 @@ def pianoroll_to_messages(pianoroll):
             pattern = roll[0]
             roll.pop(0)
         else:
-            if roll[0][-1] == 1:
-                roll.pop(0)
-                count += 1
-            else:
-                if sum(pattern) == 0:
-                    pause = count
+            try:
+            # if True:
+                if roll[0][-1] == 1:
+                    roll.pop(0)
+                    count += 1
                 else:
-                    storage = count
-                if storage > 0:
-                    roll_to_message(track, pianoroll, pattern, storage, pause)
-                    pause, storage = 0, 0
-                pattern = roll[0]
-                count = 1
+                    if sum(pattern) == 0:
+                        pause = count
+                    else:
+                        storage = count
+                    if storage > 0:
+                        roll_to_message(track, pianoroll, pattern, storage, pause)
+                        pause, storage = 0, 0
+                    pattern = roll[0]
+                    count = 1
+                    roll.pop(0)
+            except IndexError:
                 roll.pop(0)
     if sum(pattern) == 0:
         pause = count
