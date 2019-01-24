@@ -19,7 +19,8 @@ def predict():
             file.write(melody)
             file.close()
             preds = []
-            data["predictions"] = net.run_inference(temp_filename, app.config.get('model_path'), mode="rest_api_mode", predictions=preds)
+            data["predictions"] = net.run_inference(temp_filename, app.config.get('model_path'), mode="rest_api_mode",
+                                                    predictions=preds)
             os.remove(temp_filename)
             data["success"] = True
 
@@ -36,7 +37,7 @@ if __name__=='__main__':
                         help="Size of training batch")
     parser.add_argument("--epochs", type=int, default=1000,
                         help="echo the string you use here")
-    parser.add_argument("--gen_len", type=int, default=1000,
+    parser.add_argument("--gen_len", type=int, default=10,
                         help="echo the string you use here")
     parser.add_argument("--gen_num", type=int, default=5,
                         help="echo the string you use here")

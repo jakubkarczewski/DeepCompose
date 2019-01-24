@@ -154,7 +154,6 @@ class Net:
                 self.song.polyphonic_pianoroll.append(result)
                 pattern.append(index[0])
                 pattern = pattern[1:len(pattern)]
-
             self.song.polyphonic_pianoroll = list(map(list, self.song.polyphonic_pianoroll))
             if mode == "rest_api_mode":
                 predictions.append(self.song.polyphonic_pianoroll)
@@ -177,7 +176,7 @@ if __name__ == "__main__":
                         help="Size of training batch")
     parser.add_argument("--epochs", type=int, default=5,
                         help="echo the string you use here")
-    parser.add_argument("--gen_len", type=int, default=1000,
+    parser.add_argument("--gen_len", type=int, default=100,
                         help="echo the string you use here")
     parser.add_argument("--gen_num", type=int, default=5,
                         help="echo the string you use here")
