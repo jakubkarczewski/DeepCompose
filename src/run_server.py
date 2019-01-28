@@ -2,7 +2,7 @@ import flask
 from net import Net
 import argparse
 import os
-from midi import Polyphonic_pianoroll, parse_midi, save_midi
+
 app = flask.Flask(__name__)
 model = None
 

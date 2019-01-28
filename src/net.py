@@ -1,7 +1,7 @@
 import argparse
 from os.path import isdir, isfile, join
 from os import listdir
-from pickle import dump, load
+from pickle import load
 
 import numpy
 from keras.callbacks import ModelCheckpoint
@@ -10,9 +10,6 @@ from keras.models import Sequential
 from keras.utils import np_utils
 
 from midi import Polyphonic_pianoroll, parse_midi, save_midi
-
-# inference: --mode inference --midi_input all_files/Piano_tuxguitar/Beethoven_sonata14_mond_1_format0.mid --weights_path model_guitar.hdf5
-# training: --mode training --midi_input all_files/Guitar_tuxguitar/
 
 
 class Net:
@@ -33,21 +30,18 @@ class Net:
         self.chord_to_int = None
         self.int_to_chord = None
         self.model = None
-        # todo: we need shape that will be good for training and INFERENCE
-        # todo: something like (A_const, B_const, N_variable)
-        # todo: there is something like this in files from Kurowski
         self.shape_tuple = None
 
     def _preprocess_midi_inference(self, midi_filename, seq_length=16):
+        """Performs midi preprocessing in inference mode"""
+        # extract tracks
         tracks = parse_midi(midi_filename, self.min_dur)
 
+        # parse to pianoroll
         self.song = Polyphonic_pianoroll(tracks)
         self.pianoroll = list(map(tuple, self.song.polyphonic_pianoroll))  # tuple is hashable
 
         chords = sorted(list(set(self.pianoroll)))
-        # chord_to_int = dict((c, i) for i, c in enumerate(chords))
-        #
-        # self.int_to_chord = dict((i, c) for i, c in enumerate(chords))
 
         self.data_x = []
         self.data_y = []
@@ -57,34 +51,26 @@ class Net:
             self.data_x.append([self.chord_to_int[char] for char in seq_in])
             self.data_y.append(self.chord_to_int[seq_out])
 
+        # reshape to fit network input
         self.x = numpy.reshape(self.data_x, (len(self.data_x), self.seq_len, 1))
         self.x = self.x / float(len(chords))
         self.y = np_utils.to_categorical(self.data_y, num_classes=len(self.chord_to_int.keys()))
 
     def _preprocess_midi_training(self, midi_dir):
 
+        # all training files are merged into one dataset
         self.data_x = []
         self.data_y = []
 
-        # todo: sklejac chordsy
         for filename in listdir(midi_dir):
             if filename.endswith('.mid'):
-
+                # extract tracks
                 tracks = parse_midi(join(midi_dir, filename), self.min_dur)
-
+                # parse to pianoroll
                 self.song = Polyphonic_pianoroll(tracks)
                 self.pianoroll = list(map(tuple, self.song.polyphonic_pianoroll))  # tuple is hashable
 
                 chords = sorted(list(set(self.pianoroll)))
-
-                # for i, chord in enumerate(chords):
-                #     if chord not in self.int_to_chord.values():
-                #         self.chord_to_int[chord] = i
-                #         self.int_to_chord[i] = chord
-
-                # chord_to_int = dict((c, i) for i, c in enumerate(chords))
-
-                # self.int_to_chord = dict((i, c) for i, c in enumerate(chords))
 
                 for i in range(0, len(self.pianoroll) - self.seq_len, 1):
                     seq_in = self.pianoroll[i:i + self.seq_len]
@@ -92,28 +78,20 @@ class Net:
                     self.data_x.append([self.chord_to_int[char] for char in seq_in])
                     self.data_y.append(self.chord_to_int[seq_out])
 
-        # todo: shape must be as specified above, working both for training and inference
-        # todo: this solution is BAD, it can worki only for training
-        # if not self.shape_tuple:
-        #     self.shape_tuple = (len(self.data_x), self.seq_len, 1)
-        # self.x = numpy.reshape(self.data_x, self.shape_tuple)
         self.x = numpy.reshape(self.data_x, (len(self.data_x), self.seq_len, 1))
         self.x = self.x / float(len(chords))
         self.y = np_utils.to_categorical(self.data_y, num_classes=len(self.chord_to_int.keys()))
 
     def _build_model(self):
+        """Builds neural network. Further development of architecture is suggested."""
         model = Sequential()
         model.add(LSTM(self.batch_size, input_shape=(self.seq_len, 1)))
         model.add(Dropout(0.2)) # maybe parametrize?
         model.add(Dense(self.y.shape[1], activation='softmax'))
         self.model = model
 
-    # def _serialize_mappings(self):
-    #     for filename, obj in zip(("int_to_chord.pkl", "chord_to_int.pkl"), (self.int_to_chord, self.chord_to_int)):
-    #         with open(filename, 'wb') as f:
-    #             dump(obj, f)
-
     def _load_mappings(self):
+        """Loads chord universe."""
         for i, filename in enumerate(("int_to_chord.pkl", "chord_to_int.pkl")):
             with open(filename, 'rb') as f:
                 if i == 0:
@@ -124,19 +102,24 @@ class Net:
                     raise Exception
 
     def run_training(self, midi_dir):
+        """Runs training of the network."""
+        # load and preprocess data
         self._load_mappings()
         self._preprocess_midi_training(midi_dir)
+        # build model
         self._build_model()
-        # self._serialize_mappings()
         self.model.compile(loss='categorical_crossentropy', optimizer='adam')
         filepath = "md=%s-bs=%s-improvement-{epoch:02d}-{loss:.4f}.hdf5" % (self.min_dur, self.batch_size)
         checkpoint = ModelCheckpoint(filepath, monitor='loss', verbose=1, save_best_only=True, mode='min')
         callbacks_list = [checkpoint]
+        # run training
         self.model.fit(self.x, self.y, epochs=self.epochs, batch_size=self.batch_size, callbacks=callbacks_list)
 
     def run_inference(self, midi_filename, weights_path, mode=None, predictions=None):
+        # load and preprocess data
         self._load_mappings()
-        self._preprocess_midi(midi_filename)
+        self._preprocess_midi_inference(midi_filename)
+        # build model
         self._build_model()
         self.model.load_weights(weights_path)
         self.model.compile(loss='categorical_crossentropy', optimizer='adam')
@@ -148,9 +131,12 @@ class Net:
             for i in range(self.gen_len):
                 x = numpy.reshape(pattern, (1, len(pattern), 1))
                 x = x / float(len(self.pianoroll))
+                # get prediction from network
                 prediction = self.model.predict(x, verbose=0)
+                # weighted choice based on prediction output
                 index = numpy.random.choice(len(prediction[0]), 1, p=prediction[0])
                 result = self.int_to_chord[index[0]]
+                # add to song object
                 self.song.polyphonic_pianoroll.append(result)
                 pattern.append(index[0])
                 pattern = pattern[1:len(pattern)]
